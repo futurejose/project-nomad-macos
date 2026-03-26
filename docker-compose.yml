@@ -1,0 +1,125 @@
+# =============================================================================
+# Project N.O.M.A.D — macOS M-Series docker-compose.yml
+# Compatible with: Apple Silicon (M1, M2, M3, M4 and later)
+# =============================================================================
+#
+# KEY DIFFERENCES from the official Linux version:
+#
+#   1. The NOMAD Command Center image runs with 'platform: linux/amd64'
+#      via Rosetta 2 emulation, because the official ghcr.io image is
+#      currently x86-only. ARM64 support is on the upstream roadmap.
+#      Track it at: https://github.com/Crosstalk-Solutions/project-nomad
+#
+#   2. Ollama is NOT managed here — it runs natively on your Mac for
+#      full GPU/Metal acceleration (5-6x faster than running in Docker).
+#      Containers reach it via: http://host.docker.internal:11434
+#
+#   3. Qdrant and Open WebUI have native ARM64 images and run without emulation.
+#
+#   4. Kiwix and Kolibri are included but commented out — uncomment to enable.
+#      Add .zim files to ~/project-nomad/zim/ for Kiwix content.
+#
+# Usage:
+#   cp .env.example .env      # configure your settings
+#   docker compose up -d      # start the stack
+#   docker compose down       # stop the stack
+#   docker compose logs -f    # tail logs
+# =============================================================================
+
+services:
+
+  # NOMAD COMMAND CENTER
+  nomad:
+    image: ghcr.io/crosstalk-solutions/project-nomad:latest
+    platform: linux/amd64
+    container_name: project-nomad
+    restart: unless-stopped
+    ports:
+      - "${NOMAD_PORT:-8080}:8080"
+    volumes:
+      - nomad_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - NOMAD_DATA_DIR=/data
+      - TZ=${TZ:-America/New_York}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - nomad_net
+
+  # QDRANT
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: nomad_qdrant
+    restart: unless-stopped
+    expose:
+      - "6333"
+      - "6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - nomad_net
+
+  # OPEN WEBUI
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: nomad_open_webui
+    restart: unless-stopped
+    ports:
+      - "${OPEN_WEBUI_PORT:-3000}:8080"
+    volumes:
+      - open_webui_data:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-changeme-use-a-random-string}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - nomad
+    networks:
+      - nomad_net
+
+  # KIWIX (optional)
+  # kiwix:
+  #   image: ghcr.io/kiwix/kiwix-serve:latest
+  #   container_name: nomad_kiwix
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${KIWIX_PORT:-8888}:8080"
+  #   volumes:
+  #     - ${NOMAD_DIR:-$HOME/project-nomad}/zim:/data
+  #   command: /data/
+  #   networks:
+  #     - nomad_net
+
+  # KOLIBRI (optional)
+  # kolibri:
+  #   image: learningequality/kolibri:latest
+  #   container_name: nomad_kolibri
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${KOLIBRI_PORT:-8090}:8080"
+  #   volumes:
+  #     - kolibri_data:/root/.kolibri
+  #   networks:
+  #     - nomad_net
+
+volumes:
+  nomad_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  open_webui_data:
+    driver: local
+
+networks:
+  nomad_net:
+    name: project_nomad_network
+    driver: bridge
