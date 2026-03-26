@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Project N.O.M.A.D — macOS LaunchAgent
+  Optional: Automatically start NOMAD when you log in.
+
+  INSTALL:
+    cp LaunchAgent/com.projectnomad.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.projectnomad.plist
+
+  UNINSTALL:
+    launchctl unload ~/Library/LaunchAgents/com.projectnomad.plist
+    rm ~/Library/LaunchAgents/com.projectnomad.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.projectnomad</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <!-- Wait 30s for Docker Desktop to initialize, then start NOMAD -->
+    <string>sleep 30 &amp;&amp; $HOME/project-nomad/scripts/start.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/project-nomad-launch.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/project-nomad-launch-error.log</string>
+</dict>
+</plist>
